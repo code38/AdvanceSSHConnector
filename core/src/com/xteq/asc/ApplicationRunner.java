@@ -1,7 +1,9 @@
 package com.xteq.asc;
 
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -9,6 +11,8 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.g3d.Model;
+import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.TextArea;
@@ -23,182 +27,101 @@ import com.xteq.asc.misc.CustomeUserInfo;
 import java.io.*;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 public class ApplicationRunner extends ApplicationAdapter {
-	public static final float WORLD_WIDTH = 1920;
-	public static final float WORLD_HEIGHT = 1080;
+	public static final float WORLD_WIDTH = 1280;
+	public static final float WORLD_HEIGHT = 960;
 
-	private Stage stage;
-	private Texture bgTexture;
-	Label label;
-	TextArea textArea;
+		private static final String TAG = ApplicationRunner.class.getSimpleName();
 
-	private Texture cursorTexture;
+		// 视口世界的宽高统使用 480 * 800, 并统一使用伸展视口（StretchViewport）
 
-	SpriteBatch batch;
-	Texture img;
-	BitmapFont bitmapFont = null;
+		// 舞台
+		private Stage stage;
 
-	PipedOutputStream pops;
-	PipedInputStream pins;
+		// 位图字体
+		private BitmapFont bitmapFont;
 
-	private TextField textField;
+		private Label label;
 
-	byte[] tmp=new byte[1024];
-	InputStream in = null;
-	Session session = null;
-	Channel channel = null;
+		@Override
+		public void create() {
+			// 设置日志输出级别
+			Gdx.app.setLogLevel(Application.LOG_DEBUG);
 
-	PipedInputStream pis = new PipedInputStream(48000);
-	PipedOutputStream pos = new PipedOutputStream();
-	BufferedWriter bos = new BufferedWriter(new StringWriter());
+			// 使用伸展视口（StretchViewport）创建舞台
+			stage = new Stage(new StretchViewport(WORLD_WIDTH, WORLD_HEIGHT));
 
-	@Override
-	public void create () {
-		bitmapFont = new BitmapFont(Gdx.files.internal("font/fonts.fnt"));
+			// 将输入处理设置到舞台（必须设置, 否则文本框无法获取焦点）
+			Gdx.input.setInputProcessor(stage);
 
-		pops = new PipedOutputStream();
-		try {
-			pins = new PipedInputStream(pops);
-		} catch (IOException e) {
-			e.printStackTrace();
+
+			// 为了方便演示, 这里直接使用 gdx.jar 中自带的字体文件创建位图字体（只要在 BitmapFont 中包含有的字符才能够被输入）
+			bitmapFont = new BitmapFont();
+
+			// gdx.jar 中自带的字体比较小, 这里放大一下
+			bitmapFont.getData().setScale(2.0F);
+
+
+			Label.LabelStyle labelStyle = new Label.LabelStyle();
+			labelStyle.font = bitmapFont;
+			labelStyle.fontColor = new Color(1, 1, 1, 1);
+
+			label = new Label("a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n", labelStyle);
+
+			label.setFontScale(2.0f);
+			label.setPosition(0,0);
+			label.setHeight(200);
+			label.setWidth(200);
+			label.setWrap(true);
+
+			stage.addActor(label);
+
+			new ModelBatch();
+			new Model();
 		}
 
-		batch = new SpriteBatch();
-		img = new Texture("badlogic.jpg");
+		@Override
+		public void render() {
+//			if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
+//				Gdx.app.log(TAG, "username = " + usernameTextField.getText());
+//				Gdx.app.log(TAG, "password = " + passwordTextField.getText());
+//			}
 
-
-		stage = new Stage(new StretchViewport(WORLD_WIDTH, WORLD_HEIGHT));
-		Gdx.input.setInputProcessor(stage);
-
-		bgTexture = createBackgroundTexture();
-		cursorTexture = createCursorTexture();
-
-		TextField.TextFieldStyle style = new TextField.TextFieldStyle();
-
-		// 设置背景纹理区域
-		style.background = new TextureRegionDrawable(new TextureRegion(bgTexture));
-		// 设置光标纹理区域
-		style.cursor = new TextureRegionDrawable(new TextureRegion(cursorTexture));
-		// 设置文本框显示文本的字体来源
-		style.font = bitmapFont;
-		// 设置文本框字体颜色为白色
-		style.fontColor = new Color(1, 1, 1, 1);
-
-		textField = new TextField("ssssssssssss", style);
-		textField.setSize(800, 50);
-		textField.setPosition(400, 600);
-
-		textField.setAlignment(Align.left);
-
-		label=new Label("124563987258,12456382236874,123654236",
-				new Label.LabelStyle(new BitmapFont(), null));
-		label.setWidth(100);//设置每行的宽度
-		label.setWrap(true);//开启换行
-		label.setSize(800, 650);
-		label.setAlignment(Align.bottomLeft,Align.left);
-		label.setPosition(400, 550);
-
-//		stage.addActor(textArea);
-		stage.addActor(label);
-		textField.setTextFieldListener(new TextField.TextFieldListener() {
-
-			@Override
-			public void keyTyped(TextField textField, char c) {
-//              if (c == '\n') {
-//                  textField.getOnscreenKeyboard().show(true);
-//
-//              }
-				System.out.println("List="+textField.getText());
-			}
-		});
-
-		stage.addActor(textField);
-
-		JSch jSch = new JSch();
-		try {
-			session = jSch.getSession("root", "101.132.226.237", 12201);
-			session.setPassword("centos");
-			session.setUserInfo(new CustomeUserInfo());
-			session.connect();
-			System.out.println("connection");
-
-			session.connect(30000);   // making a connection with timeout.
-
-			System.out.println("connected, opening channel");
-
-			channel=session.openChannel("shell");
-
-			pis.connect(pos);
-
-			channel.setInputStream(pis);
-
-			channel.setOutputStream(pos);
-
-			//channel.connect();
-			channel.connect(3*1000);
-		} catch (JSchException | IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	@Override
-	public void render () {
-		try {
-			Gdx.gl.glClearColor(0.5F, 0.5F, 0.5F, 1);
+			// 黑色清屏
+			Gdx.gl.glClearColor(0, 0, 0, 1);
 			Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-			InputStreamReader isr = new InputStreamReader(pis);
-			BufferedReader br = new BufferedReader(isr);
-			label.setText(br.readLine());
-
+			// 更新舞台逻辑
 			stage.act();
+			// 绘制舞台
 			stage.draw();
-		}catch (Exception e){
-			e.printStackTrace();
-			dispose();
 		}
-	}
-	
-	@Override
-	public void dispose () {
-		session.disconnect();
 
-		batch.dispose();
-		img.dispose();
-	}
+		@Override
+		public void dispose() {
+			// 应用退出时释放资源
+			if (bitmapFont != null) {
+				bitmapFont.dispose();
+			}
+			if (stage != null) {
+				stage.dispose();
+			}
+		}
 
-	/**
-	 * 创建文本框的背景纹理
-	 */
-	private Texture createBackgroundTexture() {
-		Pixmap pixmap = new Pixmap(800, 600, Pixmap.Format.RGBA8888);
-		pixmap.setColor(1, 1, 1, 1);
-		pixmap.drawRectangle(0, 0, pixmap.getWidth(), pixmap.getHeight());
-		Texture texture = new Texture(pixmap);
-		pixmap.dispose();
-		return texture;
-	}
 
-	/**
-	 * 创建文本框中的光标纹理
-	 */
-	private Texture createCursorTexture() {
-		Pixmap pixmap = new Pixmap(1, 46, Pixmap.Format.RGBA8888);
-		pixmap.setColor(1, 0, 0, 1);
-		pixmap.fill();
-		Texture texture = new Texture(pixmap);
-		pixmap.dispose();
-		return texture;
-	}
+	static final String IP_ADDRESS = "192.168.42.129";
+	static final Integer PORT = 8022;
+	static final String USER_NAME = "u0_a263";
+	static final String USER_PASSWORD = "changeme";
 
 	public static void main(String[] args) {
 		JSch jSch = new JSch();
 		try {
-			Session session = jSch.getSession("root", "101.132.226.237", 12201);
-			session.setPassword("centos");
+			Session session = jSch.getSession(USER_NAME, IP_ADDRESS, PORT);
+			session.setPassword(USER_PASSWORD);
 			session.setUserInfo(new CustomeUserInfo());
-			session.setConfig("StrictHostKeyChecking", "no");
 //			session.connect();
 
 			System.out.println("connection");
@@ -212,20 +135,52 @@ public class ApplicationRunner extends ApplicationAdapter {
 			// Enable agent-forwarding.
 			//((ChannelShell)channel).setAgentForwarding(true);
 
-
-				PipedInputStream pis = new PipedInputStream();
-				PipedOutputStream pos = new PipedOutputStream(pis);
-
-			channel.setInputStream(pis);
-
-			channel.setOutputStream(System.out);
-
 			//channel.connect();
+
+
+			PipedInputStream inputStreamIn = new PipedInputStream();
+			PipedOutputStream inputStreamOut = new PipedOutputStream(inputStreamIn);
+
+			PipedInputStream outputStreamIn = new PipedInputStream();
+			PipedOutputStream outputStreamOut = new PipedOutputStream(outputStreamIn);
+
+			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(outputStreamIn));
+			OutputStreamWriter outputStreamWriter = new OutputStreamWriter(inputStreamOut);
+
+			channel.setInputStream(inputStreamIn);
+			channel.setOutputStream(outputStreamOut);
+
 			channel.connect(3*1000);
 
+			String cmd = null;
 			boolean isExit = true;
 
+
+			Runnable runnable = () -> {
+				while(true) {
+					Integer s = null;
+					try {
+						s = bufferedReader.read();
+
+//                        s = inputStreamReader.read();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+
+					if(s != null && s != -1){
+						System.out.print(new String(Character.toChars(s)));
+					}
+				}
+			};
+			new Thread(runnable).start();
+
 			while (isExit){
+				if(cmd != null){
+					outputStreamWriter.write(cmd);
+					outputStreamWriter.flush();
+//                    inputStreamIn.read();
+					cmd = null;
+				}
 				isExit = true;
 			}
 			System.out.println("channel was open");
@@ -233,4 +188,4 @@ public class ApplicationRunner extends ApplicationAdapter {
 			e.printStackTrace();
 		}
 	}
-}
+	}
